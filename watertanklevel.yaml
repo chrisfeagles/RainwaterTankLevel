@@ -1,0 +1,91 @@
+esphome:
+  name: watertanklevel
+  friendly_name: WaterTankLevel
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  platform: esphome
+  password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Watertanklevel Fallback Hotspot"
+    password: !secret fallback_hotspot_pw
+
+captive_portal:
+
+sensor:
+ # Wifi signal sensor.
+ - platform: wifi_signal
+   name: watertank_wifi
+   update_interval: 15s
+   unit_of_measurement: 'dBm'
+   filters:
+    - lambda: |-
+       if (x <= -100) {
+         return 0;
+       } else {
+         if (x >= -50) {
+           return 100;
+         } else {
+           return 2 * (x + 100);
+         }
+       }
+       
+# Templates for calculated gallons & percent
+ - platform: template
+   name: watertank_gallon
+   id: watertank_gallon
+   icon: 'mdi:water'
+   unit_of_measurement: 'gal'
+   accuracy_decimals: 0
+
+ - platform: template
+   name: watertank_percent
+   id: watertank_percent
+   icon: 'mdi:water-percent'
+   unit_of_measurement: '%'
+
+# Ultrasonic Distance Sensor
+ - platform: ultrasonic
+   trigger_pin: GPIO0
+   echo_pin: GPIO2
+   name: 'My Ultrasonic Sensor'
+   update_interval: 5s
+   pulse_time: 100us
+   filters: 
+    - filter_out: nan
+    - median:
+        window_size: 7
+        send_every: 4
+        send_first_at: 3
+    - calibrate_linear:
+       - 0.23 -> 1.68
+       - 1.61 -> 0.0
+   on_value: 
+    then:
+    - sensor.template.publish:
+        id: watertank_gallon
+        state: !lambda 'return x * 295.6921633;'
+
+    - sensor.template.publish:
+        id: watertank_percent
+        state: !lambda 'return x * 59.65163445;'
+
+    
